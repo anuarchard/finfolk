@@ -777,8 +777,13 @@
       </div>
       <input type="file" id="bankFile" accept=".csv,.xlsx,.xls" style="display:none" onchange="handleBankFile(event)">
 
-      <!-- PDF account selector (shown when PDF tab active) -->
+      <!-- PDF options (shown when PDF tab active) -->
       <div id="pdf-account-row" style="display:none;margin-top:16px">
+        <div class="form-group">
+          <label>Anthropic API Key</label>
+          <input type="password" id="pdf-api-key" placeholder="sk-ant-..." autocomplete="off">
+          <div style="font-size:11px;color:var(--muted);margin-top:5px">Get a free key at <strong style="color:var(--text)">console.anthropic.com</strong> → API Keys. Only used to read your PDF — never stored.</div>
+        </div>
         <div class="form-group" style="margin:0">
           <label>Import to Account</label>
           <select id="pdf-account"></select>
@@ -1190,6 +1195,9 @@ function handleDrop(e) {
 }
 
 async function processPdfFile(file) {
+  const apiKey = document.getElementById('pdf-api-key').value.trim();
+  if (!apiKey) { alert('Please enter your Anthropic API key first.'); return; }
+
   document.getElementById('import-step1').style.display = 'none';
   document.getElementById('import-step-pdf-loading').style.display = 'block';
 
@@ -1207,6 +1215,7 @@ async function processPdfFile(file) {
       headers: {
         'Content-Type': 'application/json',
         'anthropic-version': '2023-06-01',
+        'x-api-key': apiKey,
         'anthropic-dangerous-direct-browser-access': 'true'
       },
       body: JSON.stringify({
