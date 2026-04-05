@@ -1,0 +1,2 @@
+# finfolk
+Personal finance tracker
