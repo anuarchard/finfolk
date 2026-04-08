@@ -1743,12 +1743,9 @@ function updateCategory(id, category) {
   if (expense) {
     expense.category = category;
     save();
-    // Update the border colour of the dropdown instantly
     const selects = document.querySelectorAll(`[onchange="updateCategory('${id}', this.value)"]`);
     selects.forEach(s => s.style.borderLeftColor = CAT_COLORS[category] || '#888');
   }
-}
-  save(); renderExpenses();
 }
 
 function saveOutgoing() {
