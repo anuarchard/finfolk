@@ -397,6 +397,7 @@
     <div class="nav-item" onclick="navigate('expenses')"><span class="nav-icon">◎</span> Expenses</div>
     <div class="nav-item" onclick="navigate('outgoings')"><span class="nav-icon">◍</span> Outgoings</div>
     <div class="nav-item" onclick="navigate('investments')"><span class="nav-icon">◈</span> Investments</div>
+    <div class="nav-item" onclick="openModal('categories')"><span class="nav-icon">🏷</span> Categories</div>
   </nav>
   <div class="sidebar-footer">
     <div style="margin-bottom:10px;font-weight:600;color:var(--text)">Data</div>
@@ -630,18 +631,7 @@
     <div class="form-row">
       <div class="form-group">
         <label>Category</label>
-        <select id="exp-cat">
-          <option value="Housing">🏠 Housing</option>
-          <option value="Food">🍔 Food & Dining</option>
-          <option value="Transport">🚗 Transport</option>
-          <option value="Shopping">🛍️ Shopping</option>
-          <option value="Health">💊 Health</option>
-          <option value="Entertainment">🎬 Entertainment</option>
-          <option value="Utilities">⚡ Utilities</option>
-          <option value="Travel">✈️ Travel</option>
-          <option value="Education">📚 Education</option>
-          <option value="Other">📌 Other</option>
-        </select>
+        <select id="exp-cat"></select>
       </div>
       <div class="form-group">
         <label>Account</label>
@@ -681,17 +671,7 @@
     <div class="form-row">
       <div class="form-group">
         <label>Category</label>
-        <select id="out-cat">
-          <option value="Housing">🏠 Housing</option>
-          <option value="Utilities">⚡ Utilities</option>
-          <option value="Subscriptions">📱 Subscriptions</option>
-          <option value="Insurance">🛡️ Insurance</option>
-          <option value="Transport">🚗 Transport</option>
-          <option value="Food">🍔 Food</option>
-          <option value="Health">💊 Health</option>
-          <option value="Education">📚 Education</option>
-          <option value="Other">📌 Other</option>
-        </select>
+        <select id="out-cat"></select>
       </div>
       <div class="form-group">
         <label>Due Day of Month</label>
@@ -747,7 +727,37 @@
   </div>
 </div>
 
-<!-- Bank Import Modal -->
+<!-- Categories Modal -->
+<div class="modal-bg" id="modal-categories">
+  <div class="modal" style="max-width:480px">
+    <div class="modal-title">Manage Categories</div>
+    <p style="color:var(--muted);font-size:13px;margin-bottom:20px">Add custom categories or delete ones you don't need. Changes apply everywhere.</p>
+
+    <!-- Add new -->
+    <div style="display:flex;gap:8px;margin-bottom:20px;align-items:flex-end">
+      <div class="form-group" style="flex:1;margin:0">
+        <label>New Category Name</label>
+        <input type="text" id="new-cat-name" placeholder="e.g. Fitness, Gifts, Pets">
+      </div>
+      <div class="form-group" style="margin:0">
+        <label>Emoji</label>
+        <input type="text" id="new-cat-emoji" placeholder="🎯" style="width:60px;text-align:center">
+      </div>
+      <div class="form-group" style="margin:0">
+        <label>Colour</label>
+        <input type="color" id="new-cat-color" value="#6a9ef0" style="width:44px;height:40px;padding:2px;border-radius:8px;cursor:pointer">
+      </div>
+      <button class="btn btn-primary" onclick="addCategory()" style="margin-bottom:0;white-space:nowrap">+ Add</button>
+    </div>
+
+    <!-- Existing categories -->
+    <div id="categories-list" style="max-height:320px;overflow-y:auto"></div>
+
+    <div class="modal-actions">
+      <button class="btn btn-primary" onclick="closeModal('categories')">Done</button>
+    </div>
+  </div>
+</div>
 <div class="modal-bg" id="modal-bankimport">
   <div class="modal" style="max-width:620px">
     <div class="modal-title">Import Bank Statement</div>
@@ -877,11 +887,27 @@
 
 <script>
 // ==================== DATA ====================
+const DEFAULT_CATEGORIES = [
+  { name: 'Housing',       color: '#6a9ef0', emoji: '🏠' },
+  { name: 'Food',          color: '#c8f06a', emoji: '🍔' },
+  { name: 'Transport',     color: '#f0c86a', emoji: '🚗' },
+  { name: 'Shopping',      color: '#f06a6a', emoji: '🛍️' },
+  { name: 'Health',        color: '#6af0c8', emoji: '💊' },
+  { name: 'Entertainment', color: '#c86af0', emoji: '🎬' },
+  { name: 'Utilities',     color: '#f08a6a', emoji: '⚡' },
+  { name: 'Travel',        color: '#6af08a', emoji: '✈️' },
+  { name: 'Education',     color: '#f06ac8', emoji: '📚' },
+  { name: 'Subscriptions', color: '#a06af0', emoji: '📱' },
+  { name: 'Insurance',     color: '#f0a06a', emoji: '🛡️' },
+  { name: 'Other',         color: '#888888', emoji: '📌' },
+];
+
 let data = {
   accounts: [],
   expenses: [],
   outgoings: [],
-  investments: []
+  investments: [],
+  categories: [...DEFAULT_CATEGORIES]
 };
 
 const ACCOUNT_COLORS = {
@@ -900,11 +926,18 @@ const ACCOUNT_LABELS = {
   pension: 'Pension'
 };
 
-const CAT_COLORS = {
-  Housing: '#6a9ef0', Food: '#c8f06a', Transport: '#f0c86a',
-  Shopping: '#f06a6a', Health: '#6af0c8', Entertainment: '#c86af0',
-  Utilities: '#f08a6a', Travel: '#6af08a', Education: '#f06ac8', Other: '#888'
-};
+// Dynamic lookup — always reads from data.categories
+function getCatColors() {
+  const map = {};
+  (data.categories || DEFAULT_CATEGORIES).forEach(c => { map[c.name] = c.color; });
+  return map;
+}
+function getCatEmojis() {
+  const map = {};
+  (data.categories || DEFAULT_CATEGORIES).forEach(c => { map[c.name] = c.emoji; });
+  return map;
+}
+let CAT_COLORS = getCatColors();
 
 // ==================== STORAGE ====================
 function save() {
@@ -927,9 +960,11 @@ function load() {
         data.expenses = Array.isArray(parsed.expenses) ? parsed.expenses : [];
         data.outgoings = Array.isArray(parsed.outgoings) ? parsed.outgoings : [];
         data.investments = Array.isArray(parsed.investments) ? parsed.investments : [];
+        data.categories = Array.isArray(parsed.categories) && parsed.categories.length ? parsed.categories : [...DEFAULT_CATEGORIES];
       }
     }
   } catch(e) { console.error('Load error:', e); }
+  CAT_COLORS = getCatColors();
 }
 
 function resetAllData() {
@@ -968,19 +1003,6 @@ function handleImport(event) {
 // ==================== BANK IMPORT ====================
 let importedRows = [];
 let importHeaders = [];
-
-function handleDrop(e) {
-  e.preventDefault();
-  document.getElementById('import-dropzone').style.borderColor = 'var(--border)';
-  const file = e.dataTransfer.files[0];
-  if (file) processBankFile(file);
-}
-
-function handleBankFile(event) {
-  const file = event.target.files[0];
-  if (file) processBankFile(file);
-  event.target.value = '';
-}
 
 function processBankFile(file) {
   const reader = new FileReader();
@@ -1343,7 +1365,62 @@ function fileToBase64(file) {
   });
 }
 
-// ==================== NAVIGATION ====================
+// ==================== CATEGORIES ====================
+function getCatOptions(selectedVal) {
+  return (data.categories || DEFAULT_CATEGORIES).map(c =>
+    `<option value="${c.name}" ${c.name === selectedVal ? 'selected' : ''}>${c.emoji} ${c.name}</option>`
+  ).join('');
+}
+
+function populateCatSelects() {
+  CAT_COLORS = getCatColors();
+  const expCat = document.getElementById('exp-cat');
+  const outCat = document.getElementById('out-cat');
+  if (expCat) expCat.innerHTML = getCatOptions('Food');
+  if (outCat) outCat.innerHTML = getCatOptions('Housing');
+}
+
+function renderCategoriesList() {
+  const list = document.getElementById('categories-list');
+  if (!list) return;
+  list.innerHTML = (data.categories || DEFAULT_CATEGORIES).map((c, i) => `
+    <div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--border)">
+      <div style="width:14px;height:14px;border-radius:50%;background:${c.color};flex-shrink:0"></div>
+      <span style="font-size:18px">${c.emoji}</span>
+      <span style="flex:1;font-size:14px;font-weight:500">${c.name}</span>
+      ${i >= 0 ? `<button class="btn btn-danger btn-sm" onclick="deleteCategory(${i})" ${c.name==='Other'?'disabled style="opacity:0.3"':''}>✕</button>` : ''}
+    </div>
+  `).join('');
+}
+
+function addCategory() {
+  const name = document.getElementById('new-cat-name').value.trim();
+  const emoji = document.getElementById('new-cat-emoji').value.trim() || '📌';
+  const color = document.getElementById('new-cat-color').value;
+  if (!name) { alert('Please enter a category name.'); return; }
+  if (data.categories.find(c => c.name.toLowerCase() === name.toLowerCase())) {
+    alert('A category with that name already exists.'); return;
+  }
+  data.categories.push({ name, emoji, color });
+  save();
+  CAT_COLORS = getCatColors();
+  document.getElementById('new-cat-name').value = '';
+  document.getElementById('new-cat-emoji').value = '';
+  renderCategoriesList();
+}
+
+function deleteCategory(index) {
+  const cat = data.categories[index];
+  if (cat.name === 'Other') return;
+  if (!confirm(`Delete "${cat.name}"? Expenses using this category will show as "Other".`)) return;
+  // Reassign expenses using this category to Other
+  data.expenses.forEach(e => { if (e.category === cat.name) e.category = 'Other'; });
+  data.outgoings.forEach(o => { if (o.category === cat.name) o.category = 'Other'; });
+  data.categories.splice(index, 1);
+  save();
+  CAT_COLORS = getCatColors();
+  renderCategoriesList();
+}
 let currentPage = 'dashboard';
 let charts = {};
 
@@ -1579,7 +1656,7 @@ function renderExpenses() {
     </div>
   `).join('');
 
-  const CATS = ['Housing','Food','Transport','Shopping','Health','Entertainment','Utilities','Travel','Education','Other'];
+  const CATS = (data.categories || DEFAULT_CATEGORIES).map(c => c.name);
 
   const tbody = document.getElementById('expenses-table');
   tbody.innerHTML = filtered.length ? filtered.map(e => `
@@ -1666,10 +1743,14 @@ function renderInvestments() {
 
 // ==================== MODALS ====================
 function openModal(type) {
+  populateCatSelects();
   if (type === 'expense') {
     document.getElementById('exp-date').value = new Date().toISOString().split('T')[0];
     const accSelect = document.getElementById('exp-account');
     accSelect.innerHTML = data.accounts.map(a => `<option value="${a.id}">${a.name}</option>`).join('') || '<option value="">No accounts yet</option>';
+  }
+  if (type === 'categories') {
+    renderCategoriesList();
   }
   document.getElementById('modal-' + type).classList.add('open');
 }
