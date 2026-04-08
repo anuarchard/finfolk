@@ -408,6 +408,9 @@
     <div style="margin-top:10px">
       <button class="btn btn-primary btn-sm" style="width:100%" onclick="openModal('bankimport')">⬆ Import Bank Statement</button>
     </div>
+    <div style="margin-top:8px">
+      <button class="btn btn-danger btn-sm" style="width:100%" onclick="resetAllData()">🗑 Reset All Data</button>
+    </div>
     <input type="file" id="importFile" accept=".json" style="display:none" onchange="handleImport(event)">
     <div style="font-size:11px;color:var(--muted);margin-top:10px">CSV · Excel · PDF</div>
   </div>
@@ -929,7 +932,15 @@ function load() {
   } catch(e) { console.error('Load error:', e); }
 }
 
-function exportData() {
+function resetAllData() {
+  if (!confirm('⚠️ This will permanently delete ALL your data — accounts, expenses, investments and bills.\n\nAre you sure? This cannot be undone.')) return;
+  if (!confirm('Last chance — are you absolutely sure you want to wipe everything?')) return;
+  data = { accounts: [], expenses: [], outgoings: [], investments: [] };
+  localStorage.clear();
+  document.getElementById('last-saved').textContent = '';
+  renderDashboard();
+  alert('✅ All data cleared. Starting fresh!');
+}
   const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
