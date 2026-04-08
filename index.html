@@ -539,6 +539,23 @@
         <div class="card-sub">What you pay per year</div>
       </div>
     </div>
+
+    <!-- Recurring suggestions -->
+    <div id="recurring-suggestions-wrap" style="display:none;margin-bottom:28px">
+      <div class="table-card">
+        <div class="table-header">
+          <div>
+            <div class="table-title">🔁 Detected Recurring Payments</div>
+            <div style="font-size:12px;color:var(--muted);margin-top:2px">These transactions appear regularly — add them as bills with one click</div>
+          </div>
+        </div>
+        <table>
+          <thead><tr><th>Name</th><th>Frequency</th><th>Avg Amount</th><th>Occurrences</th><th></th></tr></thead>
+          <tbody id="recurring-suggestions"></tbody>
+        </table>
+      </div>
+    </div>
+
     <div class="table-card">
       <div class="table-header"><div class="table-title">All Bills & Subscriptions</div></div>
       <table>
@@ -766,6 +783,12 @@
     <div id="import-step1">
       <p style="color:var(--muted);font-size:14px;margin-bottom:16px">Upload a statement from your bank — CSV, Excel, or PDF.</p>
 
+      <!-- Import history -->
+      <div id="import-history-wrap" style="display:none;margin-bottom:16px">
+        <div style="font-size:12px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px">Previously Imported</div>
+        <div id="import-history-list" style="display:flex;flex-wrap:wrap;gap:6px"></div>
+      </div>
+
       <div style="display:flex;gap:8px;margin-bottom:16px">
         <button class="btn btn-ghost btn-sm" id="tab-csv" onclick="switchTab('csv')" style="border-color:var(--accent);color:var(--accent)">CSV / Excel</button>
         <button class="btn btn-ghost btn-sm" id="tab-pdf" onclick="switchTab('pdf')">PDF Statement</button>
@@ -907,7 +930,8 @@ let data = {
   expenses: [],
   outgoings: [],
   investments: [],
-  categories: [...DEFAULT_CATEGORIES]
+  categories: [...DEFAULT_CATEGORIES],
+  importHistory: []
 };
 
 const ACCOUNT_COLORS = {
@@ -961,6 +985,7 @@ function load() {
         data.outgoings = Array.isArray(parsed.outgoings) ? parsed.outgoings : [];
         data.investments = Array.isArray(parsed.investments) ? parsed.investments : [];
         data.categories = Array.isArray(parsed.categories) && parsed.categories.length ? parsed.categories : [...DEFAULT_CATEGORIES];
+        data.importHistory = Array.isArray(parsed.importHistory) ? parsed.importHistory : [];
       }
     }
   } catch(e) { console.error('Load error:', e); }
@@ -970,8 +995,9 @@ function load() {
 function resetAllData() {
   if (!confirm('⚠️ This will permanently delete ALL your data — accounts, expenses, investments and bills.\n\nAre you sure? This cannot be undone.')) return;
   if (!confirm('Last chance — are you absolutely sure you want to wipe everything?')) return;
-  data = { accounts: [], expenses: [], outgoings: [], investments: [] };
+  data = { accounts: [], expenses: [], outgoings: [], investments: [], categories: [...DEFAULT_CATEGORIES], importHistory: [] };
   localStorage.clear();
+  CAT_COLORS = getCatColors();
   document.getElementById('last-saved').textContent = '';
   renderDashboard();
   alert('✅ All data cleared. Starting fresh!');
@@ -1171,23 +1197,29 @@ function confirmBankImport() {
   const rows = getPreviewRows();
   if (!rows.length) { alert('No transactions to import.'); return; }
 
-  let added = 0;
+  const fileName = document.getElementById('bankFile').dataset.lastName || 'CSV/Excel file';
   rows.forEach(r => {
     data.expenses.push({
       id: Date.now().toString() + Math.random(),
-      date: r.date,
-      description: r.desc,
-      category: r.category,
-      account: accId,
+      date: r.date, description: r.desc,
+      category: r.category, account: accId,
       amount: Math.abs(r.amt)
     });
-    added++;
+  });
+
+  // Log to import history
+  data.importHistory.unshift({
+    id: Date.now().toString(),
+    name: fileName,
+    type: 'csv',
+    date: new Date().toISOString(),
+    count: rows.length,
+    account: accId
   });
 
   save(); renderAll();
-  closeModal('bankimport');
-  resetImport();
-  alert(`✅ Imported ${added} transactions! Categories have been auto-assigned — you can edit them in the Expenses tab.`);
+  closeModal('bankimport'); resetImport();
+  alert(`✅ Imported ${rows.length} transactions! Categories have been auto-assigned — you can edit them in the Expenses tab.`);
 }
 
 function resetImport() {
@@ -1232,9 +1264,12 @@ function switchTab(tab) {
   }
 }
 
+let currentPdfFileName = '';
+
 function handleBankFile(event) {
   const file = event.target.files[0];
   if (file) {
+    document.getElementById('bankFile').dataset.lastName = file.name;
     if (file.name.endsWith('.pdf')) processPdfFile(file);
     else processBankFile(file);
   }
@@ -1251,6 +1286,7 @@ function handleDrop(e) {
 }
 
 async function processPdfFile(file) {
+  currentPdfFileName = file.name;
   const apiKey = document.getElementById('pdf-api-key').value.trim();
   if (!apiKey) { alert('Please enter your Anthropic API key first.'); return; }
 
@@ -1339,7 +1375,8 @@ Return only the JSON array, starting with [ and ending with ]` }
 
 function confirmPdfImport() {
   const accId = document.getElementById('pdf-account').value;
-  const rows = [...pdfExtractedRows]; // snapshot before reset
+  const rows = [...pdfExtractedRows];
+
   rows.forEach(r => {
     data.expenses.push({
       id: Date.now().toString() + Math.random(),
@@ -1348,9 +1385,19 @@ function confirmPdfImport() {
       account: accId, amount: Math.abs(r.amount)
     });
   });
+
+  // Log to import history
+  data.importHistory.unshift({
+    id: Date.now().toString(),
+    name: currentPdfFileName || 'PDF Statement',
+    type: 'pdf',
+    date: new Date().toISOString(),
+    count: rows.length,
+    account: accId
+  });
+
   save();
   closeModal('bankimport'); resetImport();
-  // Switch to expenses and show all time so imported transactions are visible
   document.getElementById('expense-filter').value = 'all';
   navigate('expenses');
   alert(`✅ Imported ${rows.length} transactions!`);
@@ -1363,6 +1410,67 @@ function fileToBase64(file) {
     reader.onerror = reject;
     reader.readAsDataURL(file);
   });
+}
+
+// ==================== IMPORT HISTORY ====================
+function renderImportHistory() {
+  const wrap = document.getElementById('import-history-wrap');
+  const list = document.getElementById('import-history-list');
+  if (!wrap || !list) return;
+  if (!data.importHistory || !data.importHistory.length) {
+    wrap.style.display = 'none'; return;
+  }
+  wrap.style.display = 'block';
+  list.innerHTML = data.importHistory.map(h => {
+    const d = new Date(h.date);
+    const label = d.toLocaleDateString('en-GB', {day:'numeric', month:'short', year:'numeric'});
+    const icon = h.type === 'pdf' ? '📄' : '📊';
+    return `<div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:6px 12px;font-size:12px;display:flex;align-items:center;gap:6px">
+      <span>${icon}</span>
+      <span style="font-weight:500;color:var(--text)">${h.name}</span>
+      <span style="color:var(--muted)">${label} · ${h.count} transactions</span>
+    </div>`;
+  }).join('');
+}
+
+// ==================== RECURRING DETECTION ====================
+function detectRecurring() {
+  if (data.expenses.length < 3) return [];
+  const groups = {};
+  data.expenses.forEach(e => {
+    const key = e.description.toLowerCase().replace(/\d{2,}/g,'').replace(/[^a-z\s]/g,'').trim().substring(0,30);
+    if (!groups[key]) groups[key] = { name: e.description, amounts: [], dates: [], category: e.category };
+    groups[key].amounts.push(parseFloat(e.amount));
+    groups[key].dates.push(e.date);
+  });
+  const suggestions = [];
+  Object.values(groups).forEach(g => {
+    if (g.dates.length < 2) return;
+    g.dates.sort();
+    const avgAmount = g.amounts.reduce((a,b)=>a+b,0) / g.amounts.length;
+    const alreadyAdded = data.outgoings.some(o =>
+      o.name.toLowerCase().includes(g.name.toLowerCase().substring(0,10)) ||
+      g.name.toLowerCase().includes(o.name.toLowerCase().substring(0,10))
+    );
+    if (alreadyAdded) return;
+    const gaps = [];
+    for (let i = 1; i < g.dates.length; i++) {
+      gaps.push((new Date(g.dates[i]) - new Date(g.dates[i-1])) / (1000*60*60*24));
+    }
+    const avgGap = gaps.reduce((a,b)=>a+b,0) / gaps.length;
+    let frequency = null;
+    if (avgGap >= 25 && avgGap <= 35) frequency = 'monthly';
+    else if (avgGap >= 6 && avgGap <= 8) frequency = 'weekly';
+    else if (avgGap >= 85 && avgGap <= 100) frequency = 'quarterly';
+    else if (avgGap >= 340 && avgGap <= 390) frequency = 'annual';
+    if (frequency) suggestions.push({ name: g.name, frequency, avgAmount, count: g.dates.length, category: g.category });
+  });
+  return suggestions.sort((a,b) => b.count - a.count).slice(0, 10);
+}
+
+function addRecurringAsOutgoing(name, frequency, amount, category) {
+  data.outgoings.push({ id: Date.now().toString(), name, frequency, amount, category, dueDay: '' });
+  save(); renderOutgoings();
 }
 
 // ==================== CATEGORIES ====================
@@ -1681,6 +1789,24 @@ function renderOutgoings() {
   document.getElementById('outgoings-total').textContent = fmt(monthly);
   document.getElementById('outgoings-annual').textContent = fmt(monthly * 12);
 
+  // Recurring suggestions
+  const suggestions = detectRecurring();
+  const sugWrap = document.getElementById('recurring-suggestions-wrap');
+  const sugBody = document.getElementById('recurring-suggestions');
+  if (suggestions.length > 0) {
+    sugWrap.style.display = 'block';
+    sugBody.innerHTML = suggestions.map(s => `
+      <tr>
+        <td style="font-weight:500">${s.name}</td>
+        <td style="text-transform:capitalize;color:var(--muted)">${s.frequency}</td>
+        <td style="color:var(--accent3)">£${s.avgAmount.toFixed(2)}</td>
+        <td style="color:var(--muted)">${s.count}x detected</td>
+        <td><button class="btn btn-primary btn-sm" onclick="addRecurringAsOutgoing('${s.name.replace(/'/g,"\\'")}','${s.frequency}',${s.avgAmount.toFixed(2)},'${s.category}')">+ Add Bill</button></td>
+      </tr>`).join('');
+  } else {
+    sugWrap.style.display = 'none';
+  }
+
   const tbody = document.getElementById('outgoings-table');
   tbody.innerHTML = data.outgoings.length ? data.outgoings.map(o => `
     <tr>
@@ -1751,6 +1877,9 @@ function openModal(type) {
   }
   if (type === 'categories') {
     renderCategoriesList();
+  }
+  if (type === 'bankimport') {
+    renderImportHistory();
   }
   document.getElementById('modal-' + type).classList.add('open');
 }
