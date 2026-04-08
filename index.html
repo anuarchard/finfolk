@@ -397,6 +397,7 @@
     <div class="nav-item" onclick="navigate('expenses')"><span class="nav-icon">◎</span> Expenses</div>
     <div class="nav-item" onclick="navigate('outgoings')"><span class="nav-icon">◍</span> Outgoings</div>
     <div class="nav-item" onclick="navigate('investments')"><span class="nav-icon">◈</span> Investments</div>
+    <div class="nav-item" onclick="navigate('imports')"><span class="nav-icon">📂</span> Import History</div>
     <div class="nav-item" onclick="openModal('categories')"><span class="nav-icon">🏷</span> Categories</div>
   </nav>
   <div class="sidebar-footer">
@@ -580,6 +581,33 @@
       <table>
         <thead><tr><th>Name</th><th>Type</th><th>Invested</th><th>Current Value</th><th>Return</th><th></th></tr></thead>
         <tbody id="investments-table"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- IMPORT HISTORY -->
+  <div class="page" id="page-imports">
+    <div class="page-header">
+      <div>
+        <div class="page-title">Import History</div>
+        <div class="page-subtitle">All your uploaded bank statements</div>
+      </div>
+      <button class="btn btn-primary" onclick="openModal('bankimport')">⬆ Import Statement</button>
+    </div>
+
+    <div id="imports-empty" style="display:none">
+      <div class="empty">
+        <div class="empty-icon">📂</div>
+        <div class="empty-text">No imports yet</div>
+        <button class="btn btn-primary" onclick="openModal('bankimport')">Import your first statement</button>
+      </div>
+    </div>
+
+    <div class="table-card" id="imports-table-wrap">
+      <div class="table-header"><div class="table-title">Uploaded Statements</div></div>
+      <table>
+        <thead><tr><th>File</th><th>Type</th><th>Date Imported</th><th>Transactions</th><th>Account</th><th></th></tr></thead>
+        <tbody id="imports-table"></tbody>
       </table>
     </div>
   </div>
@@ -1433,6 +1461,45 @@ function renderImportHistory() {
   }).join('');
 }
 
+function renderImportsPage() {
+  const history = data.importHistory || [];
+  const empty = document.getElementById('imports-empty');
+  const wrap = document.getElementById('imports-table-wrap');
+  const tbody = document.getElementById('imports-table');
+
+  if (!history.length) {
+    empty.style.display = 'block';
+    wrap.style.display = 'none';
+    return;
+  }
+
+  empty.style.display = 'none';
+  wrap.style.display = 'block';
+
+  tbody.innerHTML = history.map(h => {
+    const d = new Date(h.date);
+    const dateStr = d.toLocaleDateString('en-GB', {day:'numeric', month:'short', year:'numeric'});
+    const timeStr = d.toLocaleTimeString('en-GB', {hour:'2-digit', minute:'2-digit'});
+    const icon = h.type === 'pdf' ? '📄' : '📊';
+    const accName = getAccountName(h.account);
+    return `<tr>
+      <td style="font-weight:500">${icon} ${h.name}</td>
+      <td><span class="badge" style="background:var(--surface2);color:var(--muted)">${h.type.toUpperCase()}</span></td>
+      <td style="color:var(--muted);font-size:13px">${dateStr} at ${timeStr}</td>
+      <td><span style="color:var(--accent);font-weight:600">${h.count}</span> transactions</td>
+      <td style="color:var(--muted);font-size:13px">${accName}</td>
+      <td><button class="btn btn-danger btn-sm" onclick="deleteImportRecord('${h.id}')">✕</button></td>
+    </tr>`;
+  }).join('');
+}
+
+function deleteImportRecord(id) {
+  if (!confirm('Remove this from import history? (This does not delete the imported transactions)')) return;
+  data.importHistory = data.importHistory.filter(h => h.id !== id);
+  save();
+  renderImportsPage();
+}
+
 // ==================== RECURRING DETECTION ====================
 function detectRecurring() {
   if (data.expenses.length < 3) return [];
@@ -1548,6 +1615,7 @@ function renderPage(page) {
   else if (page === 'expenses') renderExpenses();
   else if (page === 'outgoings') renderOutgoings();
   else if (page === 'investments') renderInvestments();
+  else if (page === 'imports') renderImportsPage();
 }
 
 function renderAll() { renderPage(currentPage); }
