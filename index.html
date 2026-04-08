@@ -919,13 +919,14 @@ function load() {
     const d = localStorage.getItem('finfolk_data');
     if (d) {
       const parsed = JSON.parse(d);
-      // Merge carefully — never overwrite with empty arrays
-      data.accounts = parsed.accounts?.length ? parsed.accounts : data.accounts;
-      data.expenses = parsed.expenses?.length ? parsed.expenses : data.expenses;
-      data.outgoings = parsed.outgoings?.length ? parsed.outgoings : data.outgoings;
-      data.investments = parsed.investments?.length ? parsed.investments : data.investments;
+      if (parsed && typeof parsed === 'object') {
+        data.accounts = Array.isArray(parsed.accounts) ? parsed.accounts : [];
+        data.expenses = Array.isArray(parsed.expenses) ? parsed.expenses : [];
+        data.outgoings = Array.isArray(parsed.outgoings) ? parsed.outgoings : [];
+        data.investments = Array.isArray(parsed.investments) ? parsed.investments : [];
+      }
     }
-  } catch(e) {}
+  } catch(e) { console.error('Load error:', e); }
 }
 
 function exportData() {
