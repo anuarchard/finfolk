@@ -400,6 +400,7 @@
   </nav>
   <div class="sidebar-footer">
     <div style="margin-bottom:10px;font-weight:600;color:var(--text)">Data</div>
+    <div id="last-saved" style="font-size:11px;color:var(--muted);margin-bottom:10px"></div>
     <div class="data-actions">
       <button class="btn btn-ghost btn-sm" onclick="exportData()">⬇ Backup</button>
       <button class="btn btn-ghost btn-sm" onclick="document.getElementById('importFile').click()">⬆ Restore</button>
@@ -408,7 +409,7 @@
       <button class="btn btn-primary btn-sm" style="width:100%" onclick="openModal('bankimport')">⬆ Import Bank Statement</button>
     </div>
     <input type="file" id="importFile" accept=".json" style="display:none" onchange="handleImport(event)">
-    <div style="font-size:11px;color:var(--muted);margin-top:10px">CSV · Excel · JSON</div>
+    <div style="font-size:11px;color:var(--muted);margin-top:10px">CSV · Excel · PDF</div>
   </div>
 </div>
 
@@ -904,13 +905,26 @@ const CAT_COLORS = {
 
 // ==================== STORAGE ====================
 function save() {
-  try { localStorage.setItem('finfolk_data', JSON.stringify(data)); } catch(e) {}
+  try {
+    localStorage.setItem('finfolk_data', JSON.stringify(data));
+    const now = new Date();
+    localStorage.setItem('finfolk_saved_at', now.toISOString());
+    const el = document.getElementById('last-saved');
+    if (el) el.textContent = '✓ Saved ' + now.toLocaleTimeString('en-GB', {hour:'2-digit',minute:'2-digit'});
+  } catch(e) {}
 }
 
 function load() {
   try {
     const d = localStorage.getItem('finfolk_data');
-    if (d) data = JSON.parse(d);
+    if (d) {
+      const parsed = JSON.parse(d);
+      // Merge carefully — never overwrite with empty arrays
+      data.accounts = parsed.accounts?.length ? parsed.accounts : data.accounts;
+      data.expenses = parsed.expenses?.length ? parsed.expenses : data.expenses;
+      data.outgoings = parsed.outgoings?.length ? parsed.outgoings : data.outgoings;
+      data.investments = parsed.investments?.length ? parsed.investments : data.investments;
+    }
   } catch(e) {}
 }
 
@@ -1778,6 +1792,14 @@ function deleteInvestment(id) {
 
 // ==================== INIT ====================
 load();
+const savedAt = localStorage.getItem('finfolk_saved_at');
+if (savedAt) {
+  const el = document.getElementById('last-saved');
+  if (el) {
+    const d = new Date(savedAt);
+    el.textContent = '✓ Saved ' + d.toLocaleDateString('en-GB', {day:'numeric',month:'short'}) + ' ' + d.toLocaleTimeString('en-GB', {hour:'2-digit',minute:'2-digit'});
+  }
+}
 renderDashboard();
 </script>
 </body>
